@@ -4,13 +4,14 @@
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'YOUTUBE_CHAT') {
-        // localhost 탭을 찾아서 메시지 전달
-        chrome.tabs.query({ url: 'http://localhost/*' }, (tabs) => {
-            if (tabs.length === 0) {
-                console.log('[Bridge] 게임 탭을 찾을 수 없습니다. localhost에서 게임을 실행하세요.');
+        // 게임 탭을 찾아서 메시지 전달 (localhost, 127.0.0.1, 또는 file://)
+        chrome.tabs.query({}, (tabs) => {
+            const gameTabs = tabs.filter(t => t.url && (t.url.includes('localhost') || t.url.includes('127.0.0.1') || t.url.includes('file://')));
+            if (gameTabs.length === 0) {
+                console.log('[Bridge] 게임 탭을 찾을 수 없습니다. 게임을 실행하세요.');
                 return;
             }
-            tabs.forEach(tab => {
+            gameTabs.forEach(tab => {
                 chrome.tabs.sendMessage(tab.id, {
                     type: 'CHAT_COMMAND',
                     username: message.username,

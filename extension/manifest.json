@@ -9,7 +9,9 @@
   ],
   "host_permissions": [
     "https://www.youtube.com/*",
-    "http://localhost/*"
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "file:///*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -18,10 +20,11 @@
     {
       "matches": ["https://www.youtube.com/live_chat*", "https://www.youtube.com/watch*"],
       "js": ["content_youtube.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true
     },
     {
-      "matches": ["http://localhost/*"],
+      "matches": ["http://localhost/*", "http://127.0.0.1/*", "file:///*"],
       "js": ["content_game.js"],
       "run_at": "document_idle"
     }
