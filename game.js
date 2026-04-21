@@ -23,6 +23,7 @@ let particles = [];
 let projectiles = [];
 let floatingTexts = [];
 let coreHealth = 100;
+let coreMaxHealth = 100;
 let score = 0;
 let isGameOver = false;
 let frameCount = 0;
@@ -34,6 +35,7 @@ let currentDay = 1;
 const GAME_SETTINGS = {
     ally: { heroChance: 0.1 }, // 10% chance
     heroMultipliers: { hp: 3.0, dmg: 2.0, speed: 1.2, atkSpeed: 0.7 }, // Cooldown is multiplied by atkSpeed
+    legendaryMultipliers: { hp: 10.0, dmg: 5.0, speed: 1.5, atkSpeed: 0.5 },
     units: {
         warrior: { hp: 100, speed: 1.0, dmg: 25, atkCooldown: 30 },
         archer:  { hp: 80,  speed: 0.8, dmg: 15, atkCooldown: 40 },
@@ -78,12 +80,16 @@ function bindSetting(inputId, obj, key, isFloat = false, multiplier = 1) {
     });
 }
 
-// Global & Hero
+// Global & Hero & Legendary
 bindSetting('set-hero-chance', GAME_SETTINGS.ally, 'heroChance', true, 100);
 bindSetting('set-hero-hp-mult', GAME_SETTINGS.heroMultipliers, 'hp', true);
 bindSetting('set-hero-dmg-mult', GAME_SETTINGS.heroMultipliers, 'dmg', true);
 bindSetting('set-hero-speed-mult', GAME_SETTINGS.heroMultipliers, 'speed', true);
 bindSetting('set-hero-atk-mult', GAME_SETTINGS.heroMultipliers, 'atkSpeed', true);
+bindSetting('set-leg-hp-mult', GAME_SETTINGS.legendaryMultipliers, 'hp', true);
+bindSetting('set-leg-dmg-mult', GAME_SETTINGS.legendaryMultipliers, 'dmg', true);
+bindSetting('set-leg-speed-mult', GAME_SETTINGS.legendaryMultipliers, 'speed', true);
+bindSetting('set-leg-atk-mult', GAME_SETTINGS.legendaryMultipliers, 'atkSpeed', true);
 bindSetting('set-spawn-min', GAME_SETTINGS.spawnTimer, 'minFrames');
 bindSetting('set-spawn-max', GAME_SETTINGS.spawnTimer, 'maxFrames');
 
@@ -281,12 +287,12 @@ class Particle {
 }
 
 class Stickman {
-    constructor(x, y, color, type = 'warrior', isHero = false, username = null) {
+    constructor(x, y, color, type = 'warrior', tier = 'normal', username = null) {
         this.x = x;
         this.y = y;
         this.color = color;
         this.type = type;
-        this.isHero = isHero;
+        this.tier = tier; // 'normal', 'hero', 'legendary'
         this.username = username;
         
         const stats = GAME_SETTINGS.units[type];
@@ -294,10 +300,14 @@ class Stickman {
         this.speed = stats.speed;
         this.health = stats.hp;
         
-        if (this.isHero) {
+        if (this.tier === 'hero') {
             this.size *= 1.3;
             this.speed *= GAME_SETTINGS.heroMultipliers.speed;
             this.health *= GAME_SETTINGS.heroMultipliers.hp;
+        } else if (this.tier === 'legendary') {
+            this.size *= 1.8;
+            this.speed *= GAME_SETTINGS.legendaryMultipliers.speed;
+            this.health *= GAME_SETTINGS.legendaryMultipliers.hp;
         }
         
         this.maxHealth = this.health;
@@ -325,7 +335,17 @@ class Stickman {
         const dir = (targetX > x) ? 1 : -1;
 
         ctx.save();
-        ctx.strokeStyle = this.isHero ? '#ffd700' : this.color; // Unified Gold if Hero
+        if (this.tier === 'legendary') {
+            ctx.strokeStyle = '#a200ff'; // Purple
+            ctx.shadowColor = '#ff00ff'; // Magenta glow
+            ctx.shadowBlur = 10;
+        } else if (this.tier === 'hero') {
+            ctx.strokeStyle = '#ffd700'; // Gold
+            ctx.shadowBlur = 0;
+        } else {
+            ctx.strokeStyle = this.color;
+            ctx.shadowBlur = 0;
+        }
         ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
@@ -379,7 +399,13 @@ class Stickman {
              frontHandY = y - size * 0.5; // Raised arm
         }
         
-        ctx.strokeStyle = this.isHero ? '#ffd700' : color;
+        if (this.tier === 'legendary') {
+            ctx.strokeStyle = '#a200ff';
+        } else if (this.tier === 'hero') {
+            ctx.strokeStyle = '#ffd700';
+        } else {
+            ctx.strokeStyle = color;
+        }
         ctx.beginPath();
         ctx.moveTo(x, y - size * 0.5);
         ctx.lineTo(frontHandX, frontHandY);
@@ -460,12 +486,32 @@ class Stickman {
             ctx.fillRect(x - 10, y - size - 10, 20 * (this.health / this.maxHealth), 3);
         }
         
+        // Draw Legendary/Hero indicator
+        if (this.tier === 'legendary') {
+            ctx.fillStyle = '#ff00ff';
+            ctx.font = 'bold 13px Outfit';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#ff00ff';
+            ctx.shadowBlur = 5;
+            ctx.fillText('LEGENDARY', x, y - size - 26);
+            ctx.shadowBlur = 0;
+        } else if (this.tier === 'hero') {
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 12px Outfit';
+            ctx.textAlign = 'center';
+            ctx.fillText('HERO', x, y - size - 15);
+        }
+        
         // Draw Username
         if (this.username) {
             ctx.fillStyle = '#000000';
             ctx.font = '11px Outfit';
             ctx.textAlign = 'center';
-            ctx.fillText(this.username, x, y - size - 14);
+            // Adjust height based on tier so it doesn't overlap tags
+            let offset = 14;
+            if (this.tier === 'hero') offset = 30;
+            if (this.tier === 'legendary') offset = 42;
+            ctx.fillText(this.username, x, y - size - offset);
         }
         
         ctx.restore();
@@ -517,20 +563,31 @@ class Stickman {
                     let dmg = stats.dmg;
                     let cooldown = stats.atkCooldown;
                     
-                    if (this.isHero) {
+                    if (this.tier === 'hero') {
                         dmg *= GAME_SETTINGS.heroMultipliers.dmg;
                         cooldown *= GAME_SETTINGS.heroMultipliers.atkSpeed;
+                    } else if (this.tier === 'legendary') {
+                        dmg *= GAME_SETTINGS.legendaryMultipliers.dmg;
+                        cooldown *= GAME_SETTINGS.legendaryMultipliers.atkSpeed;
                     }
                     
                     if (this.type === 'archer') {
-                        const proj = new Projectile(this.x, this.y, this.target, this.isHero ? '#ffd700' : COLORS.yellow);
+                        let pColor = COLORS.yellow;
+                        if (this.tier === 'hero') pColor = '#ffd700';
+                        if (this.tier === 'legendary') pColor = '#ff00ff';
+                        
+                        const proj = new Projectile(this.x, this.y, this.target, pColor);
                         proj.damage = dmg;
                         projectiles.push(proj);
                         this.attackCooldown = cooldown;
                     } else {
                         this.target.health -= dmg;
                         this.attackCooldown = cooldown;
-                        const fxColor = this.isHero ? '#ffd700' : COLORS.cyan;
+                        
+                        let fxColor = COLORS.cyan;
+                        if (this.tier === 'hero') fxColor = '#ffd700';
+                        if (this.tier === 'legendary') fxColor = '#ff00ff';
+                        
                         spawnExplosion(this.target.x, this.target.y, fxColor);
                         floatingTexts.push(new FloatingText(this.target.x, this.target.y - 20, `-${dmg}`, fxColor));
                     }
@@ -728,25 +785,35 @@ function spawnEnemy() {
     enemies.push(new Stickman(x, y, color, type));
 }
 
-function spawnWarrior(type = 'warrior', username = null) {
+function spawnWarrior(type = 'warrior', username = null, forceTier = null) {
     const x = canvas.width / 2 + (Math.random() - 0.5) * 100;
     const y = canvas.height / 2 + (Math.random() - 0.5) * 100;
     
-    let isHero = false;
-    // Check for Hero spawn
-    if (Math.random() < GAME_SETTINGS.ally.heroChance) {
-        isHero = true;
+    let tier = 'normal';
+    
+    if (forceTier) {
+        tier = forceTier;
+    } else {
+        // Normal roll
+        if (Math.random() < GAME_SETTINGS.ally.heroChance) {
+            tier = 'hero';
+        }
     }
     
     let color = COLORS.cyan;
     if (type === 'archer') color = COLORS.yellow;
     
-    warriors.push(new Stickman(x, y, color, type, isHero, username));
+    warriors.push(new Stickman(x, y, color, type, tier, username));
     updateUI();
 }
 
 function updateUI() {
-    document.getElementById('core-health-bar').style.width = `${Math.max(0, coreHealth)}%`;
+    document.getElementById('core-health-bar').style.width = `${Math.max(0, (coreHealth / coreMaxHealth) * 100)}%`;
+    const hpLabel = document.getElementById('castle-hp-label');
+    if (hpLabel) {
+        hpLabel.textContent = `CASTLE HEALTH (${Math.floor(Math.max(0, coreHealth))} / ${coreMaxHealth})`;
+    }
+    
     document.getElementById('warrior-count').textContent = warriors.length;
     document.getElementById('score').textContent = score;
     const dayEl = document.getElementById('day-display');
@@ -786,6 +853,7 @@ function restartGame() {
     particles = [];
     projectiles = [];
     floatingTexts = [];
+    coreMaxHealth = 100;
     coreHealth = 100;
     score = 0;
     isGameOver = false;
@@ -797,7 +865,7 @@ function restartGame() {
     // Start with one knight (never a hero)
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
-    warriors.push(new Stickman(cx, cy, COLORS.cyan, 'warrior', false));
+    warriors.push(new Stickman(cx, cy, COLORS.cyan, 'warrior', 'normal'));
     updateUI();
 }
 
@@ -981,10 +1049,20 @@ const chat = new ChatService((cmd, username) => {
     } else if (cmd === 'archer') {
         spawnWarrior('archer', username);
     } else if (cmd === 'heal') {
-        coreHealth = Math.min(100, coreHealth + 20);
+        coreHealth = Math.min(coreMaxHealth, coreHealth + 20);
         updateUI();
         spawnExplosion(canvas.width / 2, canvas.height / 2, COLORS.green);
         floatingTexts.push(new FloatingText(canvas.width / 2, canvas.height / 2 - 40, '+20 HEAL', COLORS.green));
+    } else if (cmd === 'like_event') {
+        coreMaxHealth += 20;
+        coreHealth += 20;
+        updateUI();
+        spawnExplosion(canvas.width / 2, canvas.height / 2, '#ffd700');
+        floatingTexts.push(new FloatingText(canvas.width / 2, canvas.height / 2 - 60, '+20 MAX HP! (LIKE)', '#ffd700'));
+    } else if (cmd === 'subscribe_event') {
+        // Randomly choose warrior or archer for the Legendary unit
+        const classType = Math.random() < 0.5 ? 'warrior' : 'archer';
+        spawnWarrior(classType, username, 'legendary');
     }
 });
 

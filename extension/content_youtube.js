@@ -30,14 +30,29 @@ function extractAndSendMessage(element) {
 
         if (!username || !text) return;
 
-        // warrior, archer, heal 명령어만 처리
+        // Custom Chat Commands
         if (['warrior', 'archer', 'heal'].includes(text)) {
             console.log(`[Stickman Bridge] 명령어 감지: ${username} → ${text}`);
-            chrome.runtime.sendMessage({
-                type: 'YOUTUBE_CHAT',
-                username: username,
-                text: text
-            });
+            chrome.runtime.sendMessage({ type: 'YOUTUBE_CHAT', username: username, text: text });
+        } else if (text === '!like' || text === '!좋아요') {
+            console.log(`[Stickman Bridge] 좋아요 명령어 감지: ${username}`);
+            chrome.runtime.sendMessage({ type: 'YOUTUBE_CHAT', username: username, text: 'like_event' });
+        } else if (text === '!sub' || text === '!구독') {
+            console.log(`[Stickman Bridge] 구독 명령어 감지: ${username}`);
+            chrome.runtime.sendMessage({ type: 'YOUTUBE_CHAT', username: username, text: 'subscribe_event' });
+        }
+        
+        // System Message Parsing (for Subscriptions)
+        if (element.tagName && element.tagName.toLowerCase().includes('membership-item')) {
+             console.log(`[Stickman Bridge] 멤버십/구독 감지: ${username}`);
+             chrome.runtime.sendMessage({ type: 'YOUTUBE_CHAT', username: username, text: 'subscribe_event' });
+        }
+        if (text.includes('구독') || text.includes('subscribed') || text.includes('member')) {
+            // Check if it's a system message
+            if (element.id === 'purchase-amount' || element.classList.contains('yt-live-chat-membership-item-renderer')) {
+                 console.log(`[Stickman Bridge] 시스템 구독 감지: ${username}`);
+                 chrome.runtime.sendMessage({ type: 'YOUTUBE_CHAT', username: username, text: 'subscribe_event' });
+            }
         }
     } catch (e) {
         // 파싱 실패는 무시

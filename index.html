@@ -25,7 +25,7 @@
                     <span id="day-display" class="value" style="color: var(--border-color);">DAY 1</span>
                 </div>
                 <div class="stat-item">
-                    <span class="label">CASTLE HEALTH</span>
+                    <span id="castle-hp-label" class="label">CASTLE HEALTH (100/100)</span>
                     <div class="progress-bar">
                         <div id="core-health-bar" class="progress-fill" style="width: 100%;"></div>
                     </div>
@@ -93,6 +93,13 @@
                                 <label>Damage Multiplier: <input type="number" id="set-hero-dmg-mult" step="0.1" value="2.0"></label>
                                 <label>Speed Multiplier: <input type="number" id="set-hero-speed-mult" step="0.1" value="1.2"></label>
                                 <label>Atk Cooldown Mult: <input type="number" id="set-hero-atk-mult" step="0.1" value="0.7"></label>
+                            </div>
+                            <div class="setting-group" style="margin-top: 15px;">
+                                <h3>Legendary System (Subscribe)</h3>
+                                <label>HP Multiplier: <input type="number" id="set-leg-hp-mult" step="0.1" value="10.0"></label>
+                                <label>Damage Multiplier: <input type="number" id="set-leg-dmg-mult" step="0.1" value="5.0"></label>
+                                <label>Speed Multiplier: <input type="number" id="set-leg-speed-mult" step="0.1" value="1.5"></label>
+                                <label>Atk Cooldown Mult: <input type="number" id="set-leg-atk-mult" step="0.1" value="0.5"></label>
                             </div>
                             <div class="setting-group" style="margin-top: 15px;">
                                 <h3>Enemy Spawn Logic</h3>
