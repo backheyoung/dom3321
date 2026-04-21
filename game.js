@@ -1,11 +1,153 @@
-import { ChatService } from './chatService.js';
+// ChatService - 유튜브 채팅 연동
+class ChatService {
+    constructor(onCommand) {
+        this.onCommand = onCommand;
+        this.ws = null;
+        this.setupSimulatedChat();
+        this.setupWebSocket();
+        this.setupYouTubeConnectUI();
+    }
+
+    setupWebSocket() {
+        const connect = () => {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${location.host}`;
+            try {
+                this.ws = new WebSocket(wsUrl);
+            } catch (e) {
+                console.log('[ChatService] WebSocket 연결 실패 (서버 없이 실행 중)');
+                return;
+            }
+            this.ws.onopen = () => {
+                console.log('[ChatService] WebSocket 연결됨!');
+                this.addMessage('System', '서버 연결 완료! 유튜브 URL을 연결하세요.', true);
+            };
+            this.ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'command') {
+                        this.addMessage(data.username, data.command);
+                        this.onCommand(data.command, data.username);
+                    }
+                } catch (e) { console.error('[ChatService] 메시지 파싱 오류:', e); }
+            };
+            this.ws.onclose = () => { setTimeout(connect, 3000); };
+            this.ws.onerror = () => {};
+        };
+        connect();
+    }
+
+    setupYouTubeConnectUI() {
+        const connectBtn = document.getElementById('yt-connect-btn');
+        const urlInput = document.getElementById('yt-url-input');
+        const statusDot = document.getElementById('yt-status-dot');
+        const statusText = document.getElementById('yt-status-text');
+        if (!connectBtn) return;
+        connectBtn.addEventListener('click', async () => {
+            const videoUrl = urlInput.value.trim();
+            if (!videoUrl) return;
+            statusDot.style.background = '#ffaa00';
+            statusText.textContent = '연결 중...';
+            try {
+                const res = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ videoUrl })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    statusDot.style.background = '#00ff88';
+                    statusText.textContent = `연결됨: ${result.videoId}`;
+                    this.addMessage('System', `유튜브 라이브 채팅 연결 완료! (${result.videoId})`, true);
+                } else {
+                    statusDot.style.background = '#ff4444';
+                    statusText.textContent = `오류: ${result.error}`;
+                }
+            } catch (e) {
+                statusDot.style.background = '#ff4444';
+                statusText.textContent = '서버 없이 실행 중 (채팅창 직접 입력)';
+            }
+        });
+        urlInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') connectBtn.click(); });
+    }
+
+    setupSimulatedChat() {
+        const input = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('send-chat');
+        const sendMessage = () => {
+            const text = input.value.trim();
+            if (!text) return;
+            const username = 'You';
+            this.addMessage(username, text);
+            this.processCommand(text, username);
+            input.value = '';
+        };
+        sendBtn.addEventListener('click', sendMessage);
+        input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    }
+
+    addMessage(user, text, isSystem = false) {
+        const container = document.getElementById('chat-messages');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = isSystem ? 'message system' : 'message';
+        const userSpan = document.createElement('span');
+        userSpan.className = 'user';
+        userSpan.textContent = user + ': ';
+        const textSpan = document.createElement('span');
+        textSpan.className = 'text';
+        textSpan.textContent = text;
+        msgDiv.appendChild(userSpan);
+        msgDiv.appendChild(textSpan);
+        container.appendChild(msgDiv);
+        container.scrollTop = container.scrollHeight;
+        while (container.children.length > 100) container.removeChild(container.firstChild);
+    }
+
+    processCommand(text, username) {
+        const command = text.toLowerCase().trim();
+        if (command === 'warrior') {
+            this.onCommand('warrior', username);
+        } else if (command === 'archer') {
+            this.onCommand('archer', username);
+        } else if (command === 'defender') {
+            this.onCommand('defender', username);
+        } else if (command === 'mage') {
+            this.onCommand('mage', username);
+        } else if (command === 'heal') {
+            this.onCommand('heal', username);
+        } else if (command === '!like' || command === '!좋아요') {
+            this.onCommand('like_event', username);
+        } else if (command === '!sub' || command === '!구독') {
+            this.onCommand('subscribe_event', username);
+        }
+    }
+}
+
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Initial Canvas Size Setup
+canvas.width = 800;
+canvas.height = 600;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const applyBtn = document.getElementById('apply-map-size');
+    if (applyBtn) {
+        applyBtn.addEventListener('click', () => {
+            const w = parseInt(document.getElementById('map-width-input').value);
+            const h = parseInt(document.getElementById('map-height-input').value);
+            if (w >= 400 && h >= 400) {
+                canvas.width = w;
+                canvas.height = h;
+            }
+        });
+    }
+});
+
 // Game Constants
 const COLORS = {
-    cyan: '#0055ff', // Now blue
+    cyan: '#0055ff', 
     red: '#ff2222',
     white: '#ffffff',
     bg: '#f5f5f5',
@@ -30,20 +172,38 @@ let frameCount = 0;
 let restartInterval = null;
 let castleAttackCooldown = 0;
 let currentDay = 1;
+let dayTimer = 60 * 60; // 60 seconds at 60 FPS
+let persistentMaxHpBonus = 0;
+let userKills = {};
 
 // Global Game Settings
 const GAME_SETTINGS = {
-    ally: { heroChance: 0.1 }, // 10% chance
-    heroMultipliers: { hp: 3.0, dmg: 2.0, speed: 1.2, atkSpeed: 0.7 }, // Cooldown is multiplied by atkSpeed
+    ally: { heroChance: 0.10, legendaryChance: 0.05, mythChance: 0.01 }, 
+    heroMultipliers: { hp: 3.0, dmg: 2.0, speed: 1.2, atkSpeed: 0.7 }, 
     legendaryMultipliers: { hp: 10.0, dmg: 5.0, speed: 1.5, atkSpeed: 0.5 },
+    mythMultipliers: { hp: 30.0, dmg: 15.0, speed: 2.0, atkSpeed: 0.3 },
     units: {
-        warrior: { hp: 100, speed: 1.0, dmg: 25, atkCooldown: 30 },
-        archer:  { hp: 80,  speed: 0.8, dmg: 15, atkCooldown: 40 },
-        enemy:   { hp: 60,  speed: 0.5, dmg: 15, atkCooldown: 60, spawnWeight: 70 },
-        brute:   { hp: 180, speed: 0.35, dmg: 30, atkCooldown: 60, spawnWeight: 30 },
-        enemyArcher: { hp: 40, speed: 0.6, dmg: 10, atkCooldown: 50, spawnWeight: 20 }
+        warrior:  { hp: 100, speed: 1.5, dmg: 25, atkCooldown: 30 },
+        archer:   { hp: 80,  speed: 1.2, dmg: 15, atkCooldown: 40 },
+        defender: { hp: 300, speed: 0.9, dmg: 8,  atkCooldown: 60 },
+        mage:     { hp: 60,  speed: 1.0, dmg: 50, atkCooldown: 90 },
+        enemy:   { hp: 60,  speed: 0.8, dmg: 15, atkCooldown: 60, spawnWeight: 70 },
+        brute:   { hp: 250, speed: 0.6, dmg: 40, atkCooldown: 80, spawnWeight: 30 },
+        enemyArcher: { hp: 45, speed: 0.9, dmg: 12, atkCooldown: 50, spawnWeight: 20 },
+        assassin: { hp: 120, speed: 1.8, dmg: 35, atkCooldown: 40, spawnWeight: 10 },
+        giant: { hp: 1000, speed: 0.4, dmg: 80, atkCooldown: 120, spawnWeight: 0 },
+        necromancer: { hp: 150, speed: 0.7, dmg: 30, atkCooldown: 70, spawnWeight: 0 },
+        ninja: { hp: 100, speed: 2.2, dmg: 45, atkCooldown: 30, spawnWeight: 0 },
+        armoredBrute: { hp: 800, speed: 0.5, dmg: 50, atkCooldown: 90, spawnWeight: 0 },
+        berserker: { hp: 300, speed: 1.4, dmg: 60, atkCooldown: 40, spawnWeight: 0 },
+        golem: { hp: 1500, speed: 0.3, dmg: 100, atkCooldown: 150, spawnWeight: 0 },
+        warlock: { hp: 250, speed: 0.8, dmg: 70, atkCooldown: 60, spawnWeight: 0 },
+        shadow: { hp: 400, speed: 2.5, dmg: 80, atkCooldown: 25, spawnWeight: 0 },
+        titan: { hp: 3000, speed: 0.4, dmg: 150, atkCooldown: 100, spawnWeight: 0 },
+        eliteKnight: { hp: 1200, speed: 1.0, dmg: 100, atkCooldown: 50, spawnWeight: 0 },
+        bossDemon: { hp: 5000, speed: 0.8, dmg: 200, atkCooldown: 60, spawnWeight: 0 }
     },
-    spawnTimer: { minFrames: 60, maxFrames: 180 }
+    spawnTimer: { minFrames: 30, maxFrames: 120 }
 };
 
 // Expose to window so UI can edit it
@@ -152,6 +312,41 @@ canvasWrapper.addEventListener('wheel', (e) => {
     canvasWrapper.style.transform = `translate(-50%, -50%) scale(${zoomLevel})`;
 }, { passive: false });
 
+// --- Sound System ---
+class SoundSystem {
+    constructor() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.enabled = true;
+        document.addEventListener('click', () => {
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+        }, { once: true });
+    }
+    
+    playTone(freq, type, duration, vol) {
+        if (!this.enabled || this.ctx.state !== 'running') return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+        
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+    }
+
+    playHit() { this.playTone(150, 'square', 0.1, 0.1); }
+    playShoot() { this.playTone(600, 'sine', 0.1, 0.05); }
+    playExplosion() { this.playTone(100, 'sawtooth', 0.3, 0.1); }
+    playHeal() { this.playTone(800, 'sine', 0.4, 0.1); this.playTone(1200, 'sine', 0.4, 0.1); }
+    playCastleHit() { this.playTone(80, 'sawtooth', 0.5, 0.2); }
+}
+
+const sounds = new SoundSystem();
+
 // --- Utility Classes ---
 
 class FloatingText {
@@ -163,13 +358,13 @@ class FloatingText {
         this.life = 1.0;
         this.vy = -1;
     }
-    update() {
-        this.y += this.vy;
-        this.life -= 0.02;
+    update(dt = 1) {
+        this.y += this.vy * dt;
+        this.life -= 0.02 * dt;
     }
     draw(ctx) {
         ctx.save();
-        ctx.globalAlpha = this.life;
+        ctx.globalAlpha = Math.max(0, this.life);
         ctx.fillStyle = this.color;
         ctx.font = 'bold 16px Outfit';
         ctx.textAlign = 'center';
@@ -179,15 +374,16 @@ class FloatingText {
 }
 
 class Projectile {
-    constructor(x, y, target, color) {
+    constructor(x, y, target, color, ownerUsername = null) {
         this.x = x;
         this.y = y;
         this.target = target;
         this.color = color;
+        this.ownerUsername = ownerUsername;
         this.speed = 5;
         this.dead = false;
     }
-    update() {
+    update(dt = 1) {
         if (!this.target || this.target.dead) {
             this.dead = true;
             return;
@@ -196,23 +392,26 @@ class Projectile {
         const dy = this.target.y - this.y;
         const dist = Math.hypot(dx, dy);
         
-        if (dist < 10) {
+        if (dist < 15) {
             const dmg = this.damage || 15;
             if (this.isEnemyProjectile && this.target.isCastle) {
                 coreHealth -= dmg;
+                sounds.playCastleHit();
                 spawnExplosion(this.target.x, this.target.y, this.color);
                 floatingTexts.push(new FloatingText(this.target.x, this.target.y - 20, `-${dmg} Castle`, this.color));
                 updateUI();
                 if (coreHealth <= 0) gameOver();
             } else {
                 this.target.health -= dmg;
+                this.target.lastHitter = this.ownerUsername; // Track who shot this
+                sounds.playHit();
                 spawnExplosion(this.target.x, this.target.y, this.color);
                 floatingTexts.push(new FloatingText(this.target.x, this.target.y - 20, `-${dmg}`, this.color));
             }
             this.dead = true;
         } else {
-            this.x += (dx / dist) * this.speed;
-            this.y += (dy / dist) * this.speed;
+            this.x += (dx / dist) * this.speed * dt;
+            this.y += (dy / dist) * this.speed * dt;
         }
     }
     draw(ctx) {
@@ -269,10 +468,10 @@ class Particle {
         this.decay = 0.02 + Math.random() * 0.02;
     }
 
-    update() {
-        this.x += this.vx;
-        this.y += this.vy;
-        this.life -= this.decay;
+    update(dt = 1) {
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.life -= this.decay * dt;
     }
 
     draw(ctx) {
@@ -292,11 +491,14 @@ class Stickman {
         this.y = y;
         this.color = color;
         this.type = type;
-        this.tier = tier; // 'normal', 'hero', 'legendary'
+        this.tier = tier; // 'normal', 'hero', 'legendary', 'myth'
         this.username = username;
         
         const stats = GAME_SETTINGS.units[type];
-        this.size = type === 'brute' ? 26 : 20;
+        let baseSize = 20;
+        if (['brute', 'armoredBrute', 'berserker', 'eliteKnight', 'defender'].includes(type)) baseSize = 26;
+        if (['giant', 'golem', 'titan', 'bossDemon'].includes(type)) baseSize = 35;
+        this.size = baseSize;
         this.speed = stats.speed;
         this.health = stats.hp;
         
@@ -308,6 +510,10 @@ class Stickman {
             this.size *= 1.8;
             this.speed *= GAME_SETTINGS.legendaryMultipliers.speed;
             this.health *= GAME_SETTINGS.legendaryMultipliers.hp;
+        } else if (this.tier === 'myth') {
+            this.size *= 2.2;
+            this.speed *= GAME_SETTINGS.mythMultipliers.speed;
+            this.health *= GAME_SETTINGS.mythMultipliers.hp;
         }
         
         this.maxHealth = this.health;
@@ -335,7 +541,11 @@ class Stickman {
         const dir = (targetX > x) ? 1 : -1;
 
         ctx.save();
-        if (this.tier === 'legendary') {
+        if (this.tier === 'myth') {
+            ctx.strokeStyle = '#00ffff'; // Cyan
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 18;
+        } else if (this.tier === 'legendary') {
             ctx.strokeStyle = '#a200ff'; // Purple
             ctx.shadowColor = '#ff00ff'; // Magenta glow
             ctx.shadowBlur = 10;
@@ -388,6 +598,25 @@ class Stickman {
             ctx.moveTo(x, y - size - 2);
             ctx.lineTo(x + (size/3) * dir, y - size - 2);
             ctx.stroke();
+        } else if (type === 'defender') {
+            // Defender Helmet (full face)
+            ctx.strokeStyle = '#888888';
+            ctx.fillStyle = '#aaaaaa';
+            ctx.beginPath();
+            ctx.arc(x, y - size, size / 2.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        } else if (type === 'mage') {
+            // Wizard Hat
+            ctx.fillStyle = '#220044';
+            ctx.strokeStyle = '#6600cc';
+            ctx.beginPath();
+            ctx.moveTo(x - size * 0.4, y - size * 1.05);
+            ctx.lineTo(x, y - size * 1.8);
+            ctx.lineTo(x + size * 0.4, y - size * 1.05);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
         }
 
         // Front Arm
@@ -399,7 +628,9 @@ class Stickman {
              frontHandY = y - size * 0.5; // Raised arm
         }
         
-        if (this.tier === 'legendary') {
+        if (this.tier === 'myth') {
+            ctx.strokeStyle = '#00ffff';
+        } else if (this.tier === 'legendary') {
             ctx.strokeStyle = '#a200ff';
         } else if (this.tier === 'hero') {
             ctx.strokeStyle = '#ffd700';
@@ -413,21 +644,53 @@ class Stickman {
 
         // Weapons
         if (type === 'warrior') {
-            // Sword in front hand
+            // Sword in front hand (no shield)
             ctx.strokeStyle = COLORS.stone;
             ctx.lineWidth = 4;
             ctx.beginPath();
             ctx.moveTo(frontHandX, frontHandY);
             ctx.lineTo(frontHandX + 15 * dir, frontHandY - 15);
             ctx.stroke();
-            // Shield on back hand
+        } else if (type === 'defender') {
+            // Small sword in front hand
+            ctx.strokeStyle = COLORS.stone;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(frontHandX, frontHandY);
+            ctx.lineTo(frontHandX + 10 * dir, frontHandY - 10);
+            ctx.stroke();
+            // Big rectangular shield on back hand
             ctx.fillStyle = '#8b4513';
             ctx.strokeStyle = '#555555';
             ctx.lineWidth = 2;
+            ctx.save();
+            ctx.translate(backHandX, backHandY);
+            ctx.fillRect(-5, -14, 12, 22);
+            ctx.strokeRect(-5, -14, 12, 22);
+            // Shield emblem
+            ctx.strokeStyle = '#ffdd44';
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.arc(backHandX, backHandY, 8, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.moveTo(1, -10); ctx.lineTo(1, 5);
+            ctx.moveTo(-3, -3); ctx.lineTo(5, -3);
             ctx.stroke();
+            ctx.restore();
+        } else if (type === 'mage') {
+            // Staff in front hand
+            ctx.strokeStyle = '#6600cc';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(frontHandX, frontHandY);
+            ctx.lineTo(frontHandX + 5 * dir, frontHandY - 22);
+            ctx.stroke();
+            // Orb at top of staff
+            ctx.fillStyle = '#aa00ff';
+            ctx.shadowColor = '#aa00ff';
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.arc(frontHandX + 5 * dir, frontHandY - 22, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
         } else if (type === 'archer' || type === 'enemyArcher') {
             // Bow in front hand
             const tipX = frontHandX - 4 * dir;
@@ -454,21 +717,36 @@ class Stickman {
             // Quiver on back
             ctx.fillStyle = '#654321';
             ctx.fillRect(x - 6 * dir, y - size*0.6, 6, 14);
-        } else if (type === 'enemy' || type === 'brute') {
-            // Enemy Club / Brute Axe
-            ctx.strokeStyle = '#4a2f1d';
-            ctx.lineWidth = type === 'brute' ? 6 : 4;
+        } else if (['enemy', 'brute', 'giant', 'assassin', 'necromancer', 'ninja', 'armoredBrute', 'berserker', 'golem', 'warlock', 'shadow', 'titan', 'eliteKnight', 'bossDemon'].includes(type)) {
+            // Weapon handle
+            ctx.strokeStyle = (['assassin', 'ninja', 'shadow'].includes(type)) ? '#111' : '#4a2f1d';
+            ctx.lineWidth = (['giant', 'golem', 'titan', 'bossDemon'].includes(type)) ? 8 : (['brute', 'armoredBrute', 'berserker', 'eliteKnight'].includes(type) ? 6 : (['assassin', 'ninja', 'shadow'].includes(type) ? 2 : 4));
             ctx.beginPath();
             ctx.moveTo(frontHandX, frontHandY);
-            ctx.lineTo(frontHandX + (type === 'brute' ? 15 : 10) * dir, frontHandY - (type === 'brute' ? 20 : 15));
+            
+            const weaponLen = (['giant', 'golem', 'titan', 'bossDemon'].includes(type)) ? 25 : (['brute', 'armoredBrute', 'berserker', 'eliteKnight'].includes(type) ? 15 : (['assassin', 'ninja', 'shadow'].includes(type) ? 12 : 10));
+            const weaponDrop = (['giant', 'golem', 'titan', 'bossDemon'].includes(type)) ? 35 : (['brute', 'armoredBrute', 'berserker', 'eliteKnight'].includes(type) ? 20 : (['assassin', 'ninja', 'shadow'].includes(type) ? 5 : 15));
+            ctx.lineTo(frontHandX + weaponLen * dir, frontHandY - weaponDrop);
             ctx.stroke();
             
-            if (type === 'brute') {
-                ctx.fillStyle = '#aaaaaa';
+            if (['giant', 'golem', 'titan', 'bossDemon', 'brute', 'armoredBrute', 'berserker', 'eliteKnight'].includes(type)) {
+                ctx.fillStyle = (['giant', 'golem', 'titan', 'bossDemon'].includes(type)) ? '#555555' : '#aaaaaa';
                 ctx.beginPath();
-                ctx.moveTo(frontHandX + 15 * dir, frontHandY - 20);
-                ctx.lineTo(frontHandX + 25 * dir, frontHandY - 25);
-                ctx.lineTo(frontHandX + 25 * dir, frontHandY - 5);
+                ctx.moveTo(frontHandX + weaponLen * dir, frontHandY - weaponDrop);
+                ctx.lineTo(frontHandX + (weaponLen + 15) * dir, frontHandY - weaponDrop - 10);
+                ctx.lineTo(frontHandX + (weaponLen + 15) * dir, frontHandY + 10);
+                ctx.fill();
+            } else if (['assassin', 'ninja', 'shadow'].includes(type)) {
+                ctx.strokeStyle = '#aaaaaa'; // Dagger blade
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(frontHandX + weaponLen * dir, frontHandY - weaponDrop);
+                ctx.lineTo(frontHandX + (weaponLen + 8) * dir, frontHandY - weaponDrop - 8);
+                ctx.stroke();
+            } else if (['necromancer', 'warlock'].includes(type)) {
+                ctx.fillStyle = (type === 'necromancer') ? '#800080' : '#00ff00';
+                ctx.beginPath();
+                ctx.arc(frontHandX + weaponLen * dir, frontHandY - weaponDrop, 6, 0, Math.PI * 2);
                 ctx.fill();
             } else {
                 ctx.fillStyle = '#222222';
@@ -486,8 +764,16 @@ class Stickman {
             ctx.fillRect(x - 10, y - size - 10, 20 * (this.health / this.maxHealth), 3);
         }
         
-        // Draw Legendary/Hero indicator
-        if (this.tier === 'legendary') {
+        // Draw tier indicator
+        if (this.tier === 'myth') {
+            ctx.fillStyle = '#00ffff';
+            ctx.font = 'bold 13px Outfit';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 8;
+            ctx.fillText('✦ MYTH ✦', x, y - size - 38);
+            ctx.shadowBlur = 0;
+        } else if (this.tier === 'legendary') {
             ctx.fillStyle = '#ff00ff';
             ctx.font = 'bold 13px Outfit';
             ctx.textAlign = 'center';
@@ -507,28 +793,28 @@ class Stickman {
             ctx.fillStyle = '#000000';
             ctx.font = '11px Outfit';
             ctx.textAlign = 'center';
-            // Adjust height based on tier so it doesn't overlap tags
             let offset = 14;
             if (this.tier === 'hero') offset = 30;
             if (this.tier === 'legendary') offset = 42;
+            if (this.tier === 'myth') offset = 55;
             ctx.fillText(this.username, x, y - size - offset);
         }
         
         ctx.restore();
     }
 
-    update() {
+    update(dt = 1) {
         if (this.dead) return;
-        this.walkCycle += 0.2;
+        this.walkCycle += 0.2 * dt;
         
-        if (this.type === 'warrior' || this.type === 'archer') {
-            this.updateWarrior();
+        if (['warrior', 'archer', 'defender', 'mage'].includes(this.type)) {
+            this.updateWarrior(dt);
         } else {
-            this.updateEnemy();
+            this.updateEnemy(dt);
         }
     }
 
-    updateWarrior() {
+    updateWarrior(dt = 1) {
         // Find nearest enemy within range
         let minDist = Infinity;
         let nearestEnemy = null;
@@ -551,11 +837,11 @@ class Stickman {
             const dx = this.target.x - this.x;
             const dy = this.target.y - this.y;
             const dist = Math.hypot(dx, dy);
-            const attackRange = this.type === 'archer' ? 150 : 30;
+            const attackRange = this.type === 'archer' ? 250 : 40;
 
             if (dist > attackRange) {
-                this.x += (dx / dist) * this.speed;
-                this.y += (dy / dist) * this.speed;
+                this.x += (dx / dist) * this.speed * dt;
+                this.y += (dy / dist) * this.speed * dt;
             } else {
                 // Attack
                 if (this.attackCooldown <= 0) {
@@ -563,7 +849,10 @@ class Stickman {
                     let dmg = stats.dmg;
                     let cooldown = stats.atkCooldown;
                     
-                    if (this.tier === 'hero') {
+                    if (this.tier === 'myth') {
+                        dmg *= GAME_SETTINGS.mythMultipliers.dmg;
+                        cooldown *= GAME_SETTINGS.mythMultipliers.atkSpeed;
+                    } else if (this.tier === 'hero') {
                         dmg *= GAME_SETTINGS.heroMultipliers.dmg;
                         cooldown *= GAME_SETTINGS.heroMultipliers.atkSpeed;
                     } else if (this.tier === 'legendary') {
@@ -571,18 +860,24 @@ class Stickman {
                         cooldown *= GAME_SETTINGS.legendaryMultipliers.atkSpeed;
                     }
                     
-                    if (this.type === 'archer') {
-                        let pColor = COLORS.yellow;
-                        if (this.tier === 'hero') pColor = '#ffd700';
+                    if (this.type === 'archer' || this.type === 'mage') {
+                        let pColor = this.type === 'mage' ? '#aa00ff' : COLORS.yellow;
+                        if (this.tier === 'hero') pColor = this.type === 'mage' ? '#dd44ff' : '#ffd700';
                         if (this.tier === 'legendary') pColor = '#ff00ff';
+                        if (this.tier === 'myth') pColor = '#00ffff';
                         
-                        const proj = new Projectile(this.x, this.y, this.target, pColor);
+                        const proj = new Projectile(this.x, this.y, this.target, pColor, this.username);
                         proj.damage = dmg;
+                        proj.speed = this.type === 'mage' ? 4 : 5;
                         projectiles.push(proj);
+                        sounds.playShoot();
                         this.attackCooldown = cooldown;
                     } else {
                         this.target.health -= dmg;
+                        this.target.lastHitter = this.username;
                         this.attackCooldown = cooldown;
+                        if (this.tier === 'myth') dmg *= GAME_SETTINGS.mythMultipliers.dmg / GAME_SETTINGS.mythMultipliers.dmg; // already applied above
+                        sounds.playHit();
                         
                         let fxColor = COLORS.cyan;
                         if (this.tier === 'hero') fxColor = '#ffd700';
@@ -599,7 +894,7 @@ class Stickman {
             const centerY = canvas.height / 2;
             
             if (this.patrolWait > 0) {
-                this.patrolWait--;
+                this.patrolWait -= dt;
             } else {
                 if (!this.patrolTarget) {
                     const angle = Math.random() * Math.PI * 2;
@@ -615,8 +910,8 @@ class Stickman {
                 const dist = Math.hypot(dx, dy);
 
                 if (dist > 5) {
-                    this.x += (dx / dist) * this.speed * 0.6; // Stroll speed
-                    this.y += (dy / dist) * this.speed * 0.6;
+                    this.x += (dx / dist) * this.speed * 0.6 * dt; // Stroll speed
+                    this.y += (dy / dist) * this.speed * 0.6 * dt;
                 } else {
                     this.patrolTarget = null;
                     this.patrolWait = 60 + Math.random() * 120; // Wait 1~3 seconds
@@ -624,16 +919,17 @@ class Stickman {
             }
         }
 
-        if (this.attackCooldown > 0) this.attackCooldown--;
+        if (this.attackCooldown > 0) this.attackCooldown -= dt;
 
         if (this.health <= 0) {
             this.dead = true;
+            sounds.playExplosion();
             spawnExplosion(this.x, this.y, this.color);
             updateUI();
         }
     }
 
-    updateEnemy() {
+    updateEnemy(dt = 1) {
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         
@@ -666,29 +962,33 @@ class Stickman {
         const dx = targetX - this.x;
         const dy = targetY - this.y;
         const dist = Math.hypot(dx, dy);
-        const attackRange = (this.type === 'enemyArcher') ? 150 : (targetIsUnit ? 35 : 70);
+        const attackRange = (this.type === 'enemyArcher' || this.type === 'necromancer' || this.type === 'warlock') ? 150 : (targetIsUnit ? 35 : 70);
 
         if (dist > attackRange) {
-            this.x += (dx / dist) * this.speed;
-            this.y += (dy / dist) * this.speed;
+            this.x += (dx / dist) * this.speed * dt;
+            this.y += (dy / dist) * this.speed * dt;
         } else {
             // Attack
             if (this.attackCooldown <= 0) {
                 const stats = GAME_SETTINGS.units[this.type];
-                if (this.type === 'enemyArcher') {
+                if (this.type === 'enemyArcher' || this.type === 'necromancer' || this.type === 'warlock') {
                     // Create dummy target object for castle if targeting core
                     const targetObj = targetIsUnit ? nearestWarrior : { x: centerX, y: centerY, health: coreHealth, isCastle: true };
-                    const proj = new Projectile(this.x, this.y, targetObj, COLORS.red);
+                    const pColor = (this.type === 'necromancer') ? '#800080' : ((this.type === 'warlock') ? '#00ff00' : COLORS.red);
+                    const proj = new Projectile(this.x, this.y, targetObj, pColor);
                     proj.damage = stats.dmg;
                     proj.isEnemyProjectile = true; // Need to track this to damage castle properly
                     projectiles.push(proj);
+                    sounds.playShoot();
                 } else {
                     if (targetIsUnit) {
                         nearestWarrior.health -= stats.dmg;
+                        sounds.playHit();
                         spawnExplosion(nearestWarrior.x, nearestWarrior.y, COLORS.red);
                         floatingTexts.push(new FloatingText(nearestWarrior.x, nearestWarrior.y - 20, `-${stats.dmg}`, COLORS.red));
                     } else {
                         coreHealth -= stats.dmg;
+                        sounds.playCastleHit();
                         spawnExplosion(centerX, centerY, COLORS.red);
                         floatingTexts.push(new FloatingText(centerX, centerY - 20, `-${stats.dmg} Castle`, COLORS.red));
                         updateUI();
@@ -699,11 +999,15 @@ class Stickman {
             }
         }
 
-        if (this.attackCooldown > 0) this.attackCooldown--;
+        if (this.attackCooldown > 0) this.attackCooldown -= dt;
 
         if (this.health <= 0) {
             this.dead = true;
             score++;
+            if (this.lastHitter) {
+                userKills[this.lastHitter] = (userKills[this.lastHitter] || 0) + 1;
+            }
+            sounds.playExplosion();
             spawnExplosion(this.x, this.y, COLORS.red);
             updateUI();
         }
@@ -768,18 +1072,67 @@ function spawnEnemy() {
     let type = 'enemy';
     let color = COLORS.red;
     
-    const enemyWeight = GAME_SETTINGS.units.enemy.spawnWeight;
-    const bruteWeight = GAME_SETTINGS.units.brute.spawnWeight;
-    const archerWeight = GAME_SETTINGS.units.enemyArcher.spawnWeight;
-    const totalWeight = enemyWeight + bruteWeight + archerWeight;
+    // Dynamic weights based on day
+    let enemyW = GAME_SETTINGS.units.enemy.spawnWeight;
+    let archerW = GAME_SETTINGS.units.enemyArcher.spawnWeight;
+    let bruteW = currentDay >= 2 ? GAME_SETTINGS.units.brute.spawnWeight + (currentDay * 2) : 0;
+    let assassinW = currentDay >= 3 ? GAME_SETTINGS.units.assassin.spawnWeight + (currentDay * 2) : 0;
+    let giantW = currentDay >= 5 ? (currentDay - 4) * 2 : 0;
+    let necromancerW = currentDay >= 7 ? (currentDay - 6) * 3 : 0;
+    let ninjaW = currentDay >= 9 ? (currentDay - 8) * 3 : 0;
+    let armoredBruteW = currentDay >= 11 ? (currentDay - 10) * 3 : 0;
+    let berserkerW = currentDay >= 13 ? (currentDay - 12) * 3 : 0;
+    let golemW = currentDay >= 15 ? (currentDay - 14) * 3 : 0;
+    let warlockW = currentDay >= 18 ? (currentDay - 17) * 3 : 0;
+    let shadowW = currentDay >= 21 ? (currentDay - 20) * 3 : 0;
+    let titanW = currentDay >= 24 ? (currentDay - 23) * 3 : 0;
+    let eliteKnightW = currentDay >= 27 ? (currentDay - 26) * 3 : 0;
+    let bossDemonW = currentDay >= 30 ? (currentDay - 29) * 4 : 0;
     
-    let roll = Math.random() * totalWeight;
+    const totalW = enemyW + archerW + bruteW + assassinW + giantW + necromancerW + ninjaW + armoredBruteW + berserkerW + golemW + warlockW + shadowW + titanW + eliteKnightW + bossDemonW;
+    let roll = Math.random() * totalW;
     
-    if (roll < archerWeight) {
+    if (roll < archerW) {
         type = 'enemyArcher';
-    } else if (currentDay >= 2 && roll < archerWeight + bruteWeight) {
+    } else if (roll < archerW + bruteW) {
         type = 'brute';
         color = '#800080';
+    } else if (roll < archerW + bruteW + assassinW) {
+        type = 'assassin';
+        color = '#000000';
+    } else if (roll < archerW + bruteW + assassinW + giantW) {
+        type = 'giant';
+        color = '#8B0000';
+    } else if (roll < archerW + bruteW + assassinW + giantW + necromancerW) {
+        type = 'necromancer';
+        color = '#4B0082';
+    } else if (roll < archerW + bruteW + assassinW + giantW + necromancerW + ninjaW) {
+        type = 'ninja';
+        color = '#00CED1';
+    } else if (roll < archerW + bruteW + assassinW + giantW + necromancerW + ninjaW + armoredBruteW) {
+        type = 'armoredBrute';
+        color = '#708090';
+    } else if (roll < archerW + bruteW + assassinW + giantW + necromancerW + ninjaW + armoredBruteW + berserkerW) {
+        type = 'berserker';
+        color = '#FF4500';
+    } else if (roll < archerW + bruteW + assassinW + giantW + necromancerW + ninjaW + armoredBruteW + berserkerW + golemW) {
+        type = 'golem';
+        color = '#696969';
+    } else if (roll < archerW + bruteW + assassinW + giantW + necromancerW + ninjaW + armoredBruteW + berserkerW + golemW + warlockW) {
+        type = 'warlock';
+        color = '#006400';
+    } else if (roll < archerW + bruteW + assassinW + giantW + necromancerW + ninjaW + armoredBruteW + berserkerW + golemW + warlockW + shadowW) {
+        type = 'shadow';
+        color = '#2F4F4F';
+    } else if (roll < archerW + bruteW + assassinW + giantW + necromancerW + ninjaW + armoredBruteW + berserkerW + golemW + warlockW + shadowW + titanW) {
+        type = 'titan';
+        color = '#800000';
+    } else if (roll < archerW + bruteW + assassinW + giantW + necromancerW + ninjaW + armoredBruteW + berserkerW + golemW + warlockW + shadowW + titanW + eliteKnightW) {
+        type = 'eliteKnight';
+        color = '#FFD700';
+    } else if (roll < archerW + bruteW + assassinW + giantW + necromancerW + ninjaW + armoredBruteW + berserkerW + golemW + warlockW + shadowW + titanW + eliteKnightW + bossDemonW) {
+        type = 'bossDemon';
+        color = '#000000';
     }
 
     enemies.push(new Stickman(x, y, color, type));
@@ -794,14 +1147,21 @@ function spawnWarrior(type = 'warrior', username = null, forceTier = null) {
     if (forceTier) {
         tier = forceTier;
     } else {
-        // Normal roll
-        if (Math.random() < GAME_SETTINGS.ally.heroChance) {
+        // Tier roll: myth 1%, legendary 5%, hero 10%
+        const roll = Math.random();
+        if (roll < GAME_SETTINGS.ally.mythChance) {
+            tier = 'myth';
+        } else if (roll < GAME_SETTINGS.ally.mythChance + GAME_SETTINGS.ally.legendaryChance) {
+            tier = 'legendary';
+        } else if (roll < GAME_SETTINGS.ally.mythChance + GAME_SETTINGS.ally.legendaryChance + GAME_SETTINGS.ally.heroChance) {
             tier = 'hero';
         }
     }
     
     let color = COLORS.cyan;
     if (type === 'archer') color = COLORS.yellow;
+    if (type === 'defender') color = '#4488ff';
+    if (type === 'mage') color = '#aa00ff';
     
     warriors.push(new Stickman(x, y, color, type, tier, username));
     updateUI();
@@ -818,6 +1178,25 @@ function updateUI() {
     document.getElementById('score').textContent = score;
     const dayEl = document.getElementById('day-display');
     if (dayEl) dayEl.textContent = `DAY ${currentDay}`;
+
+    // Render Leaderboard
+    const lbList = document.getElementById('leaderboard-list');
+    if (lbList) {
+        const sortedUsers = Object.entries(userKills)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10);
+        
+        if (sortedUsers.length === 0) {
+            lbList.innerHTML = '<div style="color: #666; font-size: 12px; text-align: center; margin-top: 10px;">No kills yet...</div>';
+        } else {
+            lbList.innerHTML = sortedUsers.map(([name, kills], i) => `
+                <div class="leaderboard-item">
+                    <div class="leaderboard-name">${i + 1}. ${name}</div>
+                    <div class="leaderboard-count">${kills} Kills</div>
+                </div>
+            `).join('');
+        }
+    }
 }
 
 function gameOver() {
@@ -853,16 +1232,19 @@ function restartGame() {
     particles = [];
     projectiles = [];
     floatingTexts = [];
-    coreMaxHealth = 100;
-    coreHealth = 100;
+    
+    // PERSISTENCE: Maintain bonus from previous games
+    coreMaxHealth = 100 + persistentMaxHpBonus;
+    coreHealth = coreMaxHealth;
+    
     score = 0;
     isGameOver = false;
     castleAttackCooldown = 0;
     frameCount = 0;
     currentDay = 1;
+    dayTimer = 60 * 60;
     document.getElementById('overlay').classList.add('hidden');
     
-    // Start with one knight (never a hero)
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
     warriors.push(new Stickman(cx, cy, COLORS.cyan, 'warrior', 'normal'));
@@ -873,10 +1255,24 @@ document.getElementById('restart-btn').addEventListener('click', restartGame);
 
 // --- Main Loop ---
 
+let lastTime = performance.now();
+
 function gameLoop() {
+    const now = performance.now();
+    const dt = Math.min(2.0, (now - lastTime) / (1000 / 60)); // Delta time (1.0 = 60fps)
+    lastTime = now;
+
     if (!isGameOver) {
         frameCount++;
-        currentDay = Math.floor(frameCount / 3600) + 1; // 60 FPS = 3600 frames per day
+        
+        // Day Timer Logic (60 seconds per day)
+        dayTimer -= dt;
+        if (dayTimer <= 0) {
+            dayTimer = 60 * 60; // Reset to 60s
+            currentDay++;
+            floatingTexts.push(new FloatingText(canvas.width / 2, canvas.height / 2 - 100, `DAY ${currentDay} STARTED!`, '#ffaa00'));
+        }
+        
         updateUI();
 
         // Clear Background
@@ -957,28 +1353,30 @@ function gameLoop() {
         ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
         ctx.fillRect(centerX - 40, barY, 80, 8);
         ctx.fillStyle = '#00cc44';
-        ctx.fillRect(centerX - 40, barY, 80 * Math.max(0, coreHealth / 100), 8);
+        ctx.fillRect(centerX - 40, barY, 80 * Math.max(0, coreHealth / coreMaxHealth), 8);
         ctx.strokeStyle = COLORS.line;
         ctx.lineWidth = 1;
         ctx.strokeRect(centerX - 40, barY, 80, 8);
 
-        // Castle HP Text
+        // Castle HUD
+        const secondsLeft = Math.ceil(dayTimer / 60);
         ctx.fillStyle = COLORS.line;
-        ctx.font = 'bold 14px Arial';
+        ctx.font = 'bold 16px Outfit';
         ctx.textAlign = 'center';
-        ctx.fillText(`HP: ${Math.floor(Math.max(0, coreHealth))} / 100`, centerX, barY - 8);
+        ctx.fillText(`${secondsLeft}s | DAY ${currentDay}`, centerX, barY - 25);
+
+        ctx.font = 'bold 12px Outfit';
+        ctx.fillText(`HP: ${Math.floor(Math.max(0, coreHealth))} / ${Math.floor(coreMaxHealth)}`, centerX, barY - 8);
 
         // Spawn Enemies
-        const maxF = GAME_SETTINGS.spawnTimer.maxFrames;
-        const minF = GAME_SETTINGS.spawnTimer.minFrames;
-        const currentInterval = Math.max(minF, maxF - Math.floor(score / 2));
-        if (frameCount % currentInterval === 0) {
+        const spawnInterval = Math.max(30, 120 - (currentDay * 10)); 
+        if (frameCount % Math.max(1, Math.round(spawnInterval)) === 0) {
             spawnEnemy();
         }
 
         // Castle Auto-Attack
         if (castleAttackCooldown > 0) {
-            castleAttackCooldown--;
+            castleAttackCooldown -= dt;
         } else if (enemies.length > 0) {
             let nearestEnemy = null;
             let minDist = Infinity;
@@ -998,45 +1396,36 @@ function gameLoop() {
 
         // Update & Draw Entities
         projectiles = projectiles.filter(p => !p.dead);
-        projectiles.forEach(p => {
-            p.update();
-            p.draw(ctx);
-        });
+        projectiles.forEach(p => { p.update(dt); p.draw(ctx); });
 
         // Resolve Collisions
         warriors.forEach(w => {
-            separate(w, warriors);
-            avoidCastle(w);
+            if (frameCount % 2 === 0) separate(w, warriors, dt);
+            avoidCastle(w, dt);
         });
         enemies.forEach(e => {
-            separate(e, enemies);
-            separate(e, warriors); // Enemies shouldn't overlap warriors completely
-            avoidCastle(e);
+            if (frameCount % 2 === 0) separate(e, enemies, dt);
+            if (frameCount % 2 === 0) separate(e, warriors, dt); 
+            avoidCastle(e, dt);
         });
 
         warriors = warriors.filter(w => !w.dead);
         warriors.forEach(w => {
-            w.update();
+            w.update(dt);
             w.draw(ctx);
         });
 
         enemies = enemies.filter(e => !e.dead);
         enemies.forEach(e => {
-            e.update();
+            e.update(dt);
             e.draw(ctx);
         });
 
         particles = particles.filter(p => p.life > 0);
-        particles.forEach(p => {
-            p.update();
-            p.draw(ctx);
-        });
+        particles.forEach(p => { p.update(dt); p.draw(ctx); });
 
         floatingTexts = floatingTexts.filter(ft => ft.life > 0);
-        floatingTexts.forEach(ft => {
-            ft.update();
-            ft.draw(ctx);
-        });
+        floatingTexts.forEach(ft => { ft.update(dt); ft.draw(ctx); });
     }
 
     requestAnimationFrame(gameLoop);
@@ -1048,19 +1437,26 @@ const chat = new ChatService((cmd, username) => {
         spawnWarrior('warrior', username);
     } else if (cmd === 'archer') {
         spawnWarrior('archer', username);
+    } else if (cmd === 'defender') {
+        spawnWarrior('defender', username);
+    } else if (cmd === 'mage') {
+        spawnWarrior('mage', username);
     } else if (cmd === 'heal') {
         coreHealth = Math.min(coreMaxHealth, coreHealth + 20);
         updateUI();
+        sounds.playHeal();
         spawnExplosion(canvas.width / 2, canvas.height / 2, COLORS.green);
         floatingTexts.push(new FloatingText(canvas.width / 2, canvas.height / 2 - 40, '+20 HEAL', COLORS.green));
     } else if (cmd === 'like_event') {
-        coreMaxHealth += 20;
-        coreHealth += 20;
+        // PERMANENT CASTLE MAX HP +50
+        persistentMaxHpBonus += 50;
+        coreMaxHealth += 50;
+        coreHealth += 50; 
         updateUI();
-        spawnExplosion(canvas.width / 2, canvas.height / 2, '#ffd700');
-        floatingTexts.push(new FloatingText(canvas.width / 2, canvas.height / 2 - 60, '+20 MAX HP! (LIKE)', '#ffd700'));
+        sounds.playHeal();
+        spawnExplosion(canvas.width / 2, canvas.height / 2, '#ff69b4');
+        floatingTexts.push(new FloatingText(canvas.width / 2, canvas.height / 2 - 80, '+50 PERMANENT MAX HP! (LIKE)', '#ff69b4'));
     } else if (cmd === 'subscribe_event') {
-        // Randomly choose warrior or archer for the Legendary unit
         const classType = Math.random() < 0.5 ? 'warrior' : 'archer';
         spawnWarrior(classType, username, 'legendary');
     }

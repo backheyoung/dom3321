@@ -143,6 +143,45 @@ h1 {
     padding-right: 0.5rem;
 }
 
+/* Leaderboard */
+.leaderboard-panel {
+    position: absolute;
+    top: 2rem;
+    right: 2rem;
+    width: 250px;
+    height: 350px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    padding: 1.2rem !important;
+}
+
+.leaderboard-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 4px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    border-left: 3px solid var(--accent-blue);
+}
+
+.leaderboard-name {
+    font-weight: 700;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 140px;
+}
+
+.leaderboard-count {
+    font-weight: 800;
+    color: var(--accent-red);
+}
+
 .chat-messages::-webkit-scrollbar {
     width: 6px;
 }
