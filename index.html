@@ -124,9 +124,14 @@
                                 <label>Atk Cooldown Mult: <input type="number" id="set-leg-atk-mult" step="0.1" value="0.5"></label>
                             </div>
                             <div class="setting-group" style="margin-top: 15px;">
-                                <h3>Enemy Spawn Logic</h3>
-                                <label>Spawn Min Frames: <input type="number" id="set-spawn-min" min="10" value="60"></label>
-                                <label>Spawn Max Frames: <input type="number" id="set-spawn-max" min="10" value="180"></label>
+                                <h3>Enemy Spawn Speed</h3>
+                                <label>Base Interval (frames): <input type="number" id="set-spawn-interval" min="10" max="600" value="120" title="Interval between enemy spawns at Day 1 (lower = faster)"></label>
+                                <label>Min Interval (frames): <input type="number" id="set-spawn-min-clamp" min="5" max="300" value="30" title="Minimum interval regardless of day"></label>
+                            </div>
+                            <div class="setting-group" style="margin-top: 15px;">
+                                <h3>Castle</h3>
+                                <label>Max HP: <input type="number" id="set-castle-maxhp" min="50" max="100000" value="100"></label>
+                                <label>HP Regen (/sec): <input type="number" id="set-castle-regen" min="0" max="1000" step="0.1" value="0" title="Castle HP restored per second"></label>
                             </div>
                         </div>
                         

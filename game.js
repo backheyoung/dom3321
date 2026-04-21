@@ -165,7 +165,8 @@ let particles = [];
 let projectiles = [];
 let floatingTexts = [];
 let coreHealth = 100;
-let coreMaxHealth = 100;
+let coreMaxHealth = 1000;
+let castleRegenPerSec = 0;  // HP regen per second
 let score = 0;
 let isGameOver = false;
 let frameCount = 0;
@@ -173,6 +174,8 @@ let restartInterval = null;
 let castleAttackCooldown = 0;
 let currentDay = 1;
 let dayTimer = 60 * 60; // 60 seconds at 60 FPS
+let spawnBaseInterval = 120; // Base enemy spawn interval (frames) at Day 1
+let spawnMinClamp = 30;      // Minimum spawn interval regardless of day
 let persistentMaxHpBonus = 0;
 let userKills = {};
 
@@ -250,8 +253,29 @@ bindSetting('set-leg-hp-mult', GAME_SETTINGS.legendaryMultipliers, 'hp', true);
 bindSetting('set-leg-dmg-mult', GAME_SETTINGS.legendaryMultipliers, 'dmg', true);
 bindSetting('set-leg-speed-mult', GAME_SETTINGS.legendaryMultipliers, 'speed', true);
 bindSetting('set-leg-atk-mult', GAME_SETTINGS.legendaryMultipliers, 'atkSpeed', true);
-bindSetting('set-spawn-min', GAME_SETTINGS.spawnTimer, 'minFrames');
-bindSetting('set-spawn-max', GAME_SETTINGS.spawnTimer, 'maxFrames');
+
+// Spawn interval settings
+const spawnIntervalInput = document.getElementById('set-spawn-interval');
+spawnIntervalInput.value = spawnBaseInterval;
+spawnIntervalInput.addEventListener('change', e => { spawnBaseInterval = Math.max(5, parseInt(e.target.value)); });
+
+const spawnMinClampInput = document.getElementById('set-spawn-min-clamp');
+spawnMinClampInput.value = spawnMinClamp;
+spawnMinClampInput.addEventListener('change', e => { spawnMinClamp = Math.max(1, parseInt(e.target.value)); });
+
+// Castle settings
+const castleMaxHpInput = document.getElementById('set-castle-maxhp');
+castleMaxHpInput.value = coreMaxHealth;
+castleMaxHpInput.addEventListener('change', e => {
+    const newMax = Math.max(1, parseInt(e.target.value));
+    coreMaxHealth = newMax;
+    coreHealth = Math.min(coreHealth, coreMaxHealth);
+    updateUI();
+});
+
+const castleRegenInput = document.getElementById('set-castle-regen');
+castleRegenInput.value = castleRegenPerSec;
+castleRegenInput.addEventListener('change', e => { castleRegenPerSec = Math.max(0, parseFloat(e.target.value)); });
 
 // Warrior
 bindSetting('set-warrior-hp', GAME_SETTINGS.units.warrior, 'hp');
@@ -652,14 +676,7 @@ class Stickman {
             ctx.lineTo(frontHandX + 15 * dir, frontHandY - 15);
             ctx.stroke();
         } else if (type === 'defender') {
-            // Small sword in front hand
-            ctx.strokeStyle = COLORS.stone;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(frontHandX, frontHandY);
-            ctx.lineTo(frontHandX + 10 * dir, frontHandY - 10);
-            ctx.stroke();
-            // Big rectangular shield on back hand
+            // Only big rectangular shield (no sword)
             ctx.fillStyle = '#8b4513';
             ctx.strokeStyle = '#555555';
             ctx.lineWidth = 2;
@@ -837,7 +854,7 @@ class Stickman {
             const dx = this.target.x - this.x;
             const dy = this.target.y - this.y;
             const dist = Math.hypot(dx, dy);
-            const attackRange = this.type === 'archer' ? 250 : 40;
+            const attackRange = this.type === 'archer' ? 250 : (this.type === 'mage' ? 375 : 40);
 
             if (dist > attackRange) {
                 this.x += (dx / dist) * this.speed * dt;
@@ -1234,7 +1251,7 @@ function restartGame() {
     floatingTexts = [];
     
     // PERSISTENCE: Maintain bonus from previous games
-    coreMaxHealth = 100 + persistentMaxHpBonus;
+    coreMaxHealth = 1000 + persistentMaxHpBonus;
     coreHealth = coreMaxHealth;
     
     score = 0;
@@ -1368,8 +1385,14 @@ function gameLoop() {
         ctx.font = 'bold 12px Outfit';
         ctx.fillText(`HP: ${Math.floor(Math.max(0, coreHealth))} / ${Math.floor(coreMaxHealth)}`, centerX, barY - 8);
 
+        // Castle HP Regen
+        if (castleRegenPerSec > 0 && coreHealth < coreMaxHealth && !isGameOver) {
+            coreHealth = Math.min(coreMaxHealth, coreHealth + castleRegenPerSec / 60 * dt);
+            updateUI();
+        }
+
         // Spawn Enemies
-        const spawnInterval = Math.max(30, 120 - (currentDay * 10)); 
+        const spawnInterval = Math.max(spawnMinClamp, spawnBaseInterval - (currentDay * 8));
         if (frameCount % Math.max(1, Math.round(spawnInterval)) === 0) {
             spawnEnemy();
         }
