@@ -49,27 +49,29 @@
                 </div>
             </div>
 
-            <!-- YouTube Connection Panel -->
-            <div class="glass-panel" style="padding: 10px 15px; margin-bottom: 8px;">
-                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-                    <span id="yt-status-dot" style="width: 10px; height: 10px; border-radius: 50%; background: #ff4444; flex-shrink: 0;"></span>
-                    <span id="yt-status-text" class="label" style="font-size: 11px;">YOUTUBE 미연결</span>
+            <div id="bottom-panels" style="display: flex; flex-direction: column; gap: 8px; width: 350px; align-self: flex-start;">
+                <!-- YouTube Connection Panel -->
+                <div class="glass-panel" style="padding: 10px 15px;">
+                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                        <span id="yt-status-dot" style="width: 10px; height: 10px; border-radius: 50%; background: #ff4444; flex-shrink: 0;"></span>
+                        <span id="yt-status-text" class="label" style="font-size: 11px;">YOUTUBE 미연결</span>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="text" id="yt-url-input" placeholder="유튜브 URL..." style="flex: 1; padding: 0.4rem; font-size: 11px; width: 100%;">
+                        <button id="yt-connect-btn" style="white-space: nowrap; padding: 4px 8px; font-size: 11px;">연결</button>
+                    </div>
                 </div>
-                <div style="display: flex; gap: 5px;">
-                    <input type="text" id="yt-url-input" placeholder="유튜브 라이브 URL 붙여넣기..." style="flex: 1; padding: 0.4rem; font-size: 11px;">
-                    <button id="yt-connect-btn" style="white-space: nowrap;">연결</button>
-                </div>
-            </div>
 
-            <!-- Chat Panel -->
-            <div class="glass-panel chat-panel">
-                <div class="chat-header">LIVE CHAT</div>
-                <div id="chat-messages" class="chat-messages">
-                    <div class="message system">System: Type 'warrior', 'archer', or 'heal'! Scroll map to zoom.</div>
-                </div>
-                <div class="chat-input-container">
-                    <input type="text" id="chat-input" placeholder="Type command here...">
-                    <button id="send-chat">SEND</button>
+                <!-- Chat Panel -->
+                <div class="glass-panel chat-panel" style="align-self: stretch;">
+                    <div class="chat-header">LIVE CHAT</div>
+                    <div id="chat-messages" class="chat-messages">
+                        <div class="message system">System: Type 'warrior', 'archer', or 'heal'!</div>
+                    </div>
+                    <div class="chat-input-container">
+                        <input type="text" id="chat-input" placeholder="Type command here...">
+                        <button id="send-chat">SEND</button>
+                    </div>
                 </div>
             </div>
         </div>
