@@ -4,19 +4,14 @@
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'YOUTUBE_CHAT') {
-        // 게임 탭을 찾아서 메시지 전달 (localhost, 127.0.0.1, 또는 file://)
+        // 모든 탭에 브로드캐스트 (content_game.js가 주입된 탭만 응답함)
         chrome.tabs.query({}, (tabs) => {
-            const gameTabs = tabs.filter(t => t.url && (t.url.includes('localhost') || t.url.includes('127.0.0.1') || t.url.includes('file://')));
-            if (gameTabs.length === 0) {
-                console.log('[Bridge] 게임 탭을 찾을 수 없습니다. 게임을 실행하세요.');
-                return;
-            }
-            gameTabs.forEach(tab => {
+            tabs.forEach(tab => {
                 chrome.tabs.sendMessage(tab.id, {
                     type: 'CHAT_COMMAND',
                     username: message.username,
                     text: message.text
-                });
+                }).catch(() => {}); // content script가 없는 탭의 에러는 무시
             });
         });
     }

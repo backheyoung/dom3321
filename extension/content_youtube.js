@@ -30,14 +30,20 @@ function extractAndSendMessage(element) {
 
         if (!username || !text) return;
 
-        // Custom Chat Commands
-        if (['warrior', 'archer', 'heal'].includes(text)) {
-            console.log(`[Stickman Bridge] 명령어 감지: ${username} → ${text}`);
-            chrome.runtime.sendMessage({ type: 'YOUTUBE_CHAT', username: username, text: text });
-        } else if (text === '!like' || text === '!좋아요') {
+        // Custom Chat Commands (Forgiving match)
+        if (text.includes('warrior')) {
+            console.log(`[Stickman Bridge] 명령어 감지: ${username} → warrior`);
+            chrome.runtime.sendMessage({ type: 'YOUTUBE_CHAT', username: username, text: 'warrior' });
+        } else if (text.includes('archer')) {
+            console.log(`[Stickman Bridge] 명령어 감지: ${username} → archer`);
+            chrome.runtime.sendMessage({ type: 'YOUTUBE_CHAT', username: username, text: 'archer' });
+        } else if (text.includes('heal')) {
+            console.log(`[Stickman Bridge] 명령어 감지: ${username} → heal`);
+            chrome.runtime.sendMessage({ type: 'YOUTUBE_CHAT', username: username, text: 'heal' });
+        } else if (text.includes('!like') || text.includes('!좋아요')) {
             console.log(`[Stickman Bridge] 좋아요 명령어 감지: ${username}`);
             chrome.runtime.sendMessage({ type: 'YOUTUBE_CHAT', username: username, text: 'like_event' });
-        } else if (text === '!sub' || text === '!구독') {
+        } else if (text.includes('!sub') || text.includes('!구독')) {
             console.log(`[Stickman Bridge] 구독 명령어 감지: ${username}`);
             chrome.runtime.sendMessage({ type: 'YOUTUBE_CHAT', username: username, text: 'subscribe_event' });
         }
