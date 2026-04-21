@@ -2,3 +2,5 @@
 Thumbs.db
 *.log
 .gemini/
+node_modules/
+package-lock.json

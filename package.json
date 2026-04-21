@@ -10,5 +10,22 @@
   },
   "devDependencies": {
     "vite": "^5.0.0"
+  },
+  "description": "",
+  "main": "chatService.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/backheyoung/dom3321.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/backheyoung/dom3321/issues"
+  },
+  "homepage": "https://github.com/backheyoung/dom3321#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "ws": "^8.20.0"
   }
 }
