@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stickman Live Defense</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Game Canvas -->
+        <div id="canvas-wrapper">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <!-- Glassmorphism UI -->
+        <div id="ui-container">
+            <div class="glass-panel stats-panel">
+                <h1>STICKMAN LIVE DEFENSE</h1>
+                <div class="stat-item">
+                    <span class="label">CURRENT DAY</span>
+                    <span id="day-display" class="value" style="color: var(--border-color);">DAY 1</span>
+                </div>
+                <div class="stat-item">
+                    <span class="label">CASTLE HEALTH</span>
+                    <div class="progress-bar">
+                        <div id="core-health-bar" class="progress-fill" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <span class="label">WARRIORS</span>
+                    <span id="warrior-count" class="value neon-text-cyan">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="label">ENEMIES DEFEATED</span>
+                    <span id="score" class="value neon-text-red">0</span>
+                </div>
+                <div class="stat-item" style="margin-top: 10px; border-top: 2px solid var(--border-color); padding-top: 10px;">
+                    <span class="label">MAP SIZE (W x H)</span>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="map-width-input" value="800" min="400" max="3000" style="padding: 0.4rem; width: 70px;" title="Width">
+                        <span style="align-self: center;">x</span>
+                        <input type="number" id="map-height-input" value="600" min="400" max="3000" style="padding: 0.4rem; width: 70px;" title="Height">
+                        <button id="apply-map-size">APPLY</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Simulation Panel -->
+            <div class="glass-panel chat-panel">
+                <div class="chat-header">YOUTUBE LIVE CHAT (SIM)</div>
+                <div id="chat-messages" class="chat-messages">
+                    <div class="message system">System: Type 'warrior', 'archer', or 'heal'! Scroll map to zoom.</div>
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" id="chat-input" placeholder="Type command here...">
+                    <button id="send-chat">SEND</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Button -->
+        <button id="settings-btn" title="Game Settings">⚙️</button>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="hidden">
+            <div class="settings-content glass-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">
+                    <h2 style="margin:0; font-size:20px; color:var(--border-color);">Game Settings</h2>
+                    <button id="close-settings-btn" class="glow-button" style="padding: 5px 15px;">Close</button>
+                </div>
+                
+                <div class="settings-layout">
+                    <!-- Sidebar Tabs -->
+                    <div class="settings-sidebar">
+                        <button class="tab-btn active" data-tab="tab-global">Global & Hero</button>
+                        <button class="tab-btn" data-tab="tab-allies">Allies</button>
+                        <button class="tab-btn" data-tab="tab-enemies">Enemies</button>
+                    </div>
+                    
+                    <!-- Content Panels -->
+                    <div class="settings-panels">
+                        
+                        <!-- Global Tab -->
+                        <div id="tab-global" class="tab-pane active">
+                            <div class="setting-group">
+                                <h3>Hero System</h3>
+                                <label>Spawn Chance (%): <input type="number" id="set-hero-chance" min="0" max="100" value="10"></label>
+                                <label>HP Multiplier: <input type="number" id="set-hero-hp-mult" step="0.1" value="3.0"></label>
+                                <label>Damage Multiplier: <input type="number" id="set-hero-dmg-mult" step="0.1" value="2.0"></label>
+                                <label>Speed Multiplier: <input type="number" id="set-hero-speed-mult" step="0.1" value="1.2"></label>
+                                <label>Atk Cooldown Mult: <input type="number" id="set-hero-atk-mult" step="0.1" value="0.7"></label>
+                            </div>
+                            <div class="setting-group" style="margin-top: 15px;">
+                                <h3>Enemy Spawn Logic</h3>
+                                <label>Spawn Min Frames: <input type="number" id="set-spawn-min" min="10" value="60"></label>
+                                <label>Spawn Max Frames: <input type="number" id="set-spawn-max" min="10" value="180"></label>
+                            </div>
+                        </div>
+                        
+                        <!-- Allies Tab -->
+                        <div id="tab-allies" class="tab-pane hidden">
+                            <div class="setting-group">
+                                <h3>Warrior</h3>
+                                <label>HP: <input type="number" id="set-warrior-hp" value="100"></label>
+                                <label>Damage: <input type="number" id="set-warrior-dmg" value="25"></label>
+                                <label>Speed: <input type="number" id="set-warrior-speed" step="0.1" value="1.0"></label>
+                                <label>Atk Cooldown: <input type="number" id="set-warrior-atk" value="30"></label>
+                            </div>
+                            <div class="setting-group" style="margin-top: 15px;">
+                                <h3>Archer</h3>
+                                <label>HP: <input type="number" id="set-archer-hp" value="80"></label>
+                                <label>Damage: <input type="number" id="set-archer-dmg" value="15"></label>
+                                <label>Speed: <input type="number" id="set-archer-speed" step="0.1" value="0.8"></label>
+                                <label>Atk Cooldown: <input type="number" id="set-archer-atk" value="40"></label>
+                            </div>
+                        </div>
+
+                        <!-- Enemies Tab -->
+                        <div id="tab-enemies" class="tab-pane hidden">
+                            <div class="setting-group">
+                                <h3>Basic Enemy</h3>
+                                <label>HP: <input type="number" id="set-enemy-hp" value="60"></label>
+                                <label>Damage: <input type="number" id="set-enemy-dmg" value="15"></label>
+                                <label>Speed: <input type="number" id="set-enemy-speed" step="0.1" value="0.5"></label>
+                                <label>Atk Cooldown: <input type="number" id="set-enemy-atk" value="60"></label>
+                                <label>Spawn Weight: <input type="number" id="set-enemy-weight" value="70"></label>
+                            </div>
+                            <div class="setting-group" style="margin-top: 15px;">
+                                <h3>Brute</h3>
+                                <label>HP: <input type="number" id="set-brute-hp" value="180"></label>
+                                <label>Damage: <input type="number" id="set-brute-dmg" value="30"></label>
+                                <label>Speed: <input type="number" id="set-brute-speed" step="0.1" value="0.35"></label>
+                                <label>Atk Cooldown: <input type="number" id="set-brute-atk" value="60"></label>
+                                <label>Spawn Weight: <input type="number" id="set-brute-weight" value="30"></label>
+                            </div>
+                            <div class="setting-group" style="margin-top: 15px;">
+                                <h3>Enemy Archer</h3>
+                                <label>HP: <input type="number" id="set-earc-hp" value="40"></label>
+                                <label>Damage: <input type="number" id="set-earc-dmg" value="10"></label>
+                                <label>Speed: <input type="number" id="set-earc-speed" step="0.1" value="0.6"></label>
+                                <label>Atk Cooldown: <input type="number" id="set-earc-atk" value="50"></label>
+                                <label>Spawn Weight: <input type="number" id="set-earc-weight" value="20"></label>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overlay for Game Over -->
+        <div id="overlay" class="hidden">
+            <div class="overlay-content">
+                <h2 id="overlay-title">GAME OVER</h2>
+                <button id="restart-btn">RESTART MISSION</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="game.js"></script>
+</body>
+</html>

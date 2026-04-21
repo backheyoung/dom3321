@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            width: 220px;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 13px;
+            padding: 12px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h3 { margin: 0 0 8px 0; color: #ffd700; font-size: 14px; }
+        .status { 
+            display: flex; align-items: center; gap: 6px;
+            background: #16213e; padding: 8px 10px;
+            border-radius: 6px; margin-bottom: 8px;
+        }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #888; }
+        .dot.active { background: #00ff88; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        p { color: #aaa; font-size: 11px; line-height: 1.5; margin: 0; }
+        .tip { background: #0f3460; padding: 8px; border-radius: 6px; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <h3>⚔️ Stickman Bridge</h3>
+    <div class="status">
+        <div class="dot active" id="dot"></div>
+        <span id="status-text">연동 활성화됨</span>
+    </div>
+    <div class="tip">
+        <p>📋 <b>채팅 명령어</b></p>
+        <p>• <b>warrior</b> — 전사 소환</p>
+        <p>• <b>archer</b> — 궁수 소환</p>
+        <p>• <b>heal</b> — 성 체력 회복</p>
+    </div>
+    <p style="margin-top:8px; color:#666; font-size:10px;">유튜브 라이브 채팅 → 게임 자동 연동</p>
+</body>
+</html>
