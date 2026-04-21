@@ -172,6 +172,10 @@ function processCommand(username, text) {
         command = 'warrior';
     } else if (text.includes('archer') || text.includes('궁수')) {
         command = 'archer';
+    } else if (text.includes('mage') || text.includes('메이지')) {
+        command = 'mage';
+    } else if (text.includes('defender') || text.includes('방어사')) {
+        command = 'defender';
     } else if (text.includes('heal') || text.includes('힐')) {
         command = 'heal';
     } else if (text.includes('!like') || text.includes('!좋아요')) {

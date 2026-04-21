@@ -147,6 +147,8 @@ export class ChatService {
             this.onCommand('warrior', username);
         } else if (command === 'archer' || command === '궁수') {
              this.onCommand('archer', username);
+        } else if (command === 'mage' || command === '메이지') {
+             this.onCommand('mage', username);
         } else if (command === 'heal' || command === '힐') {
              this.onCommand('heal', username);
         } else if (command === '!like' || command === '!좋아요') {
