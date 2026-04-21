@@ -88,12 +88,14 @@ function startObserving() {
 
                 // 새로 추가된 메시지 요소 처리
                 if (node.tagName && node.tagName.toLowerCase().includes('text-message')) {
-                    extractAndSendMessage(node);
+                    setTimeout(() => extractAndSendMessage(node), 100);
                 }
                 // 자식 중에 메시지가 있는 경우
-                node.querySelectorAll('yt-live-chat-text-message-renderer').forEach(el => {
-                    extractAndSendMessage(el);
-                });
+                if (node.querySelectorAll) {
+                    node.querySelectorAll('yt-live-chat-text-message-renderer').forEach(el => {
+                        setTimeout(() => extractAndSendMessage(el), 100);
+                    });
+                }
             });
         });
     });

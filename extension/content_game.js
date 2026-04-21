@@ -14,5 +14,12 @@ chrome.runtime.onMessage.addListener((message) => {
                 text: message.text
             }
         }));
+        
+        // 화면에 임시 토스트 알림 띄우기 (디버깅 용도)
+        let toast = document.createElement('div');
+        toast.textContent = `[Bridge] ${message.username}: ${message.text}`;
+        toast.style.cssText = "position:fixed; top:10px; right:10px; background:rgba(0,255,0,0.8); color:black; padding:5px 10px; border-radius:5px; z-index:9999; font-size:12px; pointer-events:none; transition: opacity 0.5s;";
+        document.body.appendChild(toast);
+        setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 2000);
     }
 });
